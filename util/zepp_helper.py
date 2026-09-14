@@ -138,7 +138,7 @@ def grant_login_tokens(access_token, device_id, is_phone=False) -> (str | None, 
         _app_token = resp["token_info"]["app_token"]
         _userid = resp["token_info"]["user_id"]
     except:
-        print("提取login_token失败：%s" % json.dumps(resp, ensure_ascii=False, indent=2))
+        print("提取login_token失败：响应结构异常")
     return _login_token, _app_token, _userid, None
 
 
