@@ -25,13 +25,15 @@ class PushConfig:
                  push_plus_max=30,
                  push_wechat_webhook_key=None,
                  telegram_bot_token=None,
-                 telegram_chat_id=None):
+                 telegram_chat_id=None,
+                 bark_url=None):
         self.push_plus_token = push_plus_token
         self.push_plus_hour = push_plus_hour
         self.push_plus_max = int(push_plus_max) if push_plus_max else 30
         self.push_wechat_webhook_key = push_wechat_webhook_key
         self.telegram_bot_token = telegram_bot_token
         self.telegram_chat_id = telegram_chat_id
+        self.bark_url = bark_url
 
 
 def push_plus(token, title, content):
@@ -135,6 +137,28 @@ def push_telegram_bot(bot_token, chat_id, content):
         print(f"telegram bot推送发生未知异常: {e}")
 
 
+def push_bark(bark_url, title, content):
+    """
+    推送到 Bark
+    :param bark_url: Bark 推送地址，形如 https://api.day.app/xxxxxx/
+    :param title: 推送标题
+    :param content: 推送内容
+    :return: none
+    """
+    requestUrl = bark_url.rstrip('/')
+    payload = {"title": title, "body": content}
+    try:
+        response = requests.post(requestUrl, json=payload)
+        if response.status_code == 200:
+            print("Bark推送完毕")
+        else:
+            print(f"Bark推送失败: {response.status_code}")
+    except requests.exceptions.RequestException as e:
+        print(f"Bark推送异常: {e}")
+    except Exception as e:
+        print(f"Bark推送发生未知异常: {e}")
+
+
 def push_results(exec_results, summary, config: PushConfig):
     """推送所有结果"""
     if not_in_push_time_range(config):
@@ -142,6 +166,7 @@ def push_results(exec_results, summary, config: PushConfig):
     push_to_push_plus(exec_results, summary, config)
     push_to_wechat_webhook(exec_results, summary, config)
     push_to_telegram_bot(exec_results, summary, config)
+    push_to_bark(exec_results, summary, config)
 
 
 def not_in_push_time_range(config: PushConfig) -> bool:
@@ -239,3 +264,21 @@ def push_to_telegram_bot(exec_results, summary, config: PushConfig):
         push_telegram_bot(config.telegram_bot_token, config.telegram_chat_id, html)
     else:
         print("未配置 TELEGRAM_BOT_TOKEN 或 TELEGRAM_CHAT_ID 跳过telegram推送")
+
+
+def push_to_bark(exec_results, summary, config: PushConfig):
+    """推送到Bark"""
+    if config.bark_url and config.bark_url != '' and config.bark_url != 'NO':
+        content = summary
+        if len(exec_results) >= config.push_plus_max:
+            content += '\n账号数量过多，详细情况请前往github actions中查看'
+        else:
+            for exec_result in exec_results:
+                success = exec_result['success']
+                if success is not None and success is True:
+                    content += f'\n账号：{exec_result["user"]} 刷步数成功，接口返回：{exec_result["msg"]}'
+                else:
+                    content += f'\n账号：{exec_result["user"]} 刷步数失败，失败原因：{exec_result["msg"]}'
+        push_bark(config.bark_url, f"{format_now()} 刷步数通知", content)
+    else:
+        print("未配置 BARK_URL 跳过Bark推送")
